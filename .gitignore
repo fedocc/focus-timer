@@ -1,0 +1,14 @@
+# Local build tools, user data and generated binaries
+.dev-tools/
+.DS_Store
+**/bin/
+**/obj/
+**/build/
+artifacts/
+*.zip
+*.sha256
+*.user
+*.suo
+.vs/
+settings.json
+instance.lock

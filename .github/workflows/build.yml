@@ -1,0 +1,80 @@
+name: Build and verify
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Timer and persistence tests
+        run: dotnet run --project windows/FocusTimer.CoreTests -c Release
+      - name: Native Windows integration and UI tests
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          dotnet run --project windows/FocusTimer.WindowsTests -c Release -- artifacts/windows-tests 2>&1 | Tee-Object artifacts/windows-tests.log
+          if ($LASTEXITCODE -ne 0) { throw 'Windows integration checks failed' }
+      - name: Package Windows x64
+        run: ./scripts/Publish-Windows.ps1 -Runtime win-x64
+      - name: Package Windows ARM64
+        run: ./scripts/Publish-Windows.ps1 -Runtime win-arm64
+      - name: Check packaged application preflight
+        shell: pwsh
+        run: |
+          $app = Start-Process artifacts/publish-win-x64/FocusTimer.exe -ArgumentList '--check-install' -Wait -PassThru
+          if ($app.ExitCode -ne 0) { throw "Package preflight failed: $($app.ExitCode)" }
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-packages
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+          if-no-files-found: error
+      - name: Upload native test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-test-evidence
+          path: |
+            artifacts/windows-tests/*.png
+            artifacts/windows-tests/result.txt
+            artifacts/windows-tests.log
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Core and discovery tests
+        working-directory: macos
+        run: python3 build.py --test
+      - name: Build native application
+        working-directory: macos
+        run: python3 build.py
+      - name: Installer checks and package
+        working-directory: macos
+        run: |
+          osascript -l JavaScript Tools/InstallFocus.js self-test
+          osascript -l JavaScript Tools/InstallFocus.js event-loop-test
+          zsh -n Установить_Фокус.command
+          python3 Tools/Package.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-package
+          path: |
+            macos/*.zip
+            macos/*.sha256
+          if-no-files-found: error
