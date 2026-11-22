@@ -26,8 +26,11 @@ public static class PackageTests
     }
     private static Process Install(string installer, string target)
     {
-        var process = Process.Start(new ProcessStartInfo(installer) { UseShellExecute = true })!;
-        Wait(() => Installed(target) is not null, "installed app started from permanent path");
+        var process = Process.Start(new ProcessStartInfo(installer, "--install") { UseShellExecute = false, RedirectStandardError = true })!;
+        Wait(() => process.HasExited || Installed(target) is not null, "installer finished or launched the installed app");
+        if (process.HasExited && process.ExitCode != 0)
+            throw new Exception("Published installer error: " + process.StandardError.ReadToEnd());
+        Check(Installed(target) is not null, "installed app started from permanent path");
         Wait(() => {
             var found = false;
             Native.EnumWindows((window, _) => {
