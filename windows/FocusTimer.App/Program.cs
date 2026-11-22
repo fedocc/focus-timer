@@ -25,8 +25,7 @@ public static class Program
             if (args is ["--check-install"]) { InstallerPolicy.Check(store.Load()); return 0; }
             if (args is ["--request-exit"])
             {
-                InstallerPolicy.Check(store.Load());
-                if (EventWaitHandle.TryOpenExisting(ExitEventName, out var request)) { using (request) request.Set(); }
+                WindowsInstaller.RequestIdleExit(store);
                 return 0;
             }
             if (args is ["--status"])

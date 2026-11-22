@@ -15,21 +15,7 @@ public static class WindowsInstaller
         var target = Path.Combine(parent, "FocusTimer");
         if (string.Equals(source, target, StringComparison.OrdinalIgnoreCase)) return Path.Combine(target, "FocusTimer.exe");
         if (!File.Exists(Path.Combine(source, "FocusTimer.exe"))) throw new FileNotFoundException("Распакуйте весь архив перед установкой.");
-        var old = Process.GetProcessesByName("FocusTimer").Where(p => p.Id != Environment.ProcessId).ToArray();
-        try
-        {
-            var deadline = Environment.TickCount64 + 10_000;
-            while (old.Any(p => !p.HasExited) && Environment.TickCount64 < deadline)
-            {
-                InstallerPolicy.Check(store.Load());
-                // A just-started instance may hold the file lock before its message loop/event exists.
-                if (EventWaitHandle.TryOpenExisting(Program.ExitEventName, out var request)) { using (request) request.Set(); }
-                Thread.Sleep(100);
-            }
-            InstallerPolicy.Check(store.Load());
-            if (old.Any(p => !p.HasExited)) throw new IOException("Старая копия не подтвердила обычный выход. Закройте ее через меню после окончания блока.");
-        }
-        finally { foreach (var process in old) process.Dispose(); }
+        RequestIdleExit(store);
         Directory.CreateDirectory(Program.DataDirectory); Directory.CreateDirectory(parent);
         using (var instance = new FileStream(Path.Combine(Program.DataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
         {
@@ -57,6 +43,25 @@ public static class WindowsInstaller
         var executable = Path.Combine(target, "FocusTimer.exe");
         ShellShortcut.Create(executable);
         return executable;
+    }
+    public static void RequestIdleExit(SettingsStore store)
+    {
+        var deadline = Environment.TickCount64 + 10_000;
+        using var self = Process.GetCurrentProcess();
+        while (true)
+        {
+            InstallerPolicy.Check(store.Load());
+            var processes = Process.GetProcessesByName("FocusTimer");
+            bool running;
+            try { running = processes.Any(p => p.Id != Environment.ProcessId && p.SessionId == self.SessionId && !p.HasExited); }
+            finally { foreach (var process in processes) process.Dispose(); }
+            if (!running) { InstallerPolicy.Check(store.Load()); return; }
+            // A new process can exist before its event/message loop is ready. Retry without killing it.
+            if (EventWaitHandle.TryOpenExisting(Program.ExitEventName, out var request)) { using (request) request.Set(); }
+            if (Environment.TickCount64 >= deadline)
+                throw new IOException("Старая копия не подтвердила обычный выход. Дождитесь окончания блока и закройте ее через меню.");
+            Thread.Sleep(100);
+        }
     }
     private static void CopyDistribution(string source, string destination)
     {
