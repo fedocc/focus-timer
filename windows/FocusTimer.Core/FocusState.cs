@@ -72,7 +72,8 @@ public sealed class SettingsStore(string path)
         if (!File.Exists(Path)) return new();
         var info = new FileInfo(Path);
         if (info.Length > 1_048_576) throw new InvalidDataException("Файл таймера слишком большой.");
-        var value = JsonSerializer.Deserialize<FocusSettings>(File.ReadAllBytes(Path), Json);
+        using var stream = new FileStream(Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var value = JsonSerializer.Deserialize<FocusSettings>(stream, Json);
         if (value is null || !value.IsValid) throw new InvalidDataException("Не удалось проверить сохраненный таймер.");
         return value;
     }

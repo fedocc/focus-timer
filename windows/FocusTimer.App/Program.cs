@@ -48,7 +48,7 @@ public static class Program
         }
         catch (Exception error)
         {
-            if (args.Length > 0) { Console.Error.WriteLine(error.Message); return error is InvalidOperationException ? 3 : 4; }
+            if (args.Length > 0) { Console.Error.WriteLine(error.GetBaseException().Message); return error is InvalidOperationException ? 3 : 4; }
             MessageBox.Show(error.Message, "Не удалось запустить «Фокус»", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }

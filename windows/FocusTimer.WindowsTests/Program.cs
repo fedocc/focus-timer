@@ -44,13 +44,13 @@ public static class Tests
     }
     private static FixtureState? State(string folder, string role)
     {
-        try { return JsonSerializer.Deserialize<FixtureState>(File.ReadAllText(Path.Combine(folder, role + "-state.json"))); }
+        try { return JsonSerializer.Deserialize<FixtureState>(TestFiles.Read(Path.Combine(folder, role + "-state.json"))); }
         catch (IOException) { return null; }
     }
     private static void Command(string folder, string role, string action, string? path = null)
     {
         var next = ++serial;
-        File.WriteAllText(Path.Combine(folder, role + "-command.json"), JsonSerializer.Serialize(new FixtureCommand(next, action, path)));
+        TestFiles.Write(Path.Combine(folder, role + "-command.json"), JsonSerializer.Serialize(new FixtureCommand(next, action, path)));
         Wait(() => State(folder, role)?.Serial == next, "fixture received " + action);
     }
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
@@ -217,15 +217,14 @@ public sealed class FixtureForm : Form
     }
     private void WriteState()
     {
-        var temporary = Path.Combine(config.Directory, config.Role + "-state.tmp");
-        File.WriteAllText(temporary, JsonSerializer.Serialize(new FixtureState(Environment.ProcessId, windows.Count + 1, panel, serial)));
-        File.Move(temporary, Path.Combine(config.Directory, config.Role + "-state.json"), true);
+        TestFiles.Write(Path.Combine(config.Directory, config.Role + "-state.json"),
+            JsonSerializer.Serialize(new FixtureState(Environment.ProcessId, windows.Count + 1, panel, serial)));
     }
     private void Poll()
     {
         var commandPath = Path.Combine(config.Directory, config.Role + "-command.json");
         FixtureCommand? command = null;
-        try { if (File.Exists(commandPath)) command = JsonSerializer.Deserialize<FixtureCommand>(File.ReadAllText(commandPath)); }
+        try { if (File.Exists(commandPath)) command = JsonSerializer.Deserialize<FixtureCommand>(TestFiles.Read(commandPath)); }
         catch (IOException) { }
         catch (JsonException) { }
         if (command is not null && command.Serial != serial)
@@ -253,5 +252,19 @@ public sealed class FixtureForm : Form
             }
         }
         WriteState();
+    }
+}
+
+public static class TestFiles
+{
+    public static string Read(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream); return reader.ReadToEnd();
+    }
+    public static void Write(string path, string content)
+    {
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        File.WriteAllText(temporary, content); File.Move(temporary, path, true);
     }
 }
