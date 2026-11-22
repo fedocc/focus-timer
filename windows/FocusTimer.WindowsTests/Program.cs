@@ -48,6 +48,12 @@ public static class Tests
         File.WriteAllText(Path.Combine(folder, role + "-command.json"), JsonSerializer.Serialize(new FixtureCommand(next, action, path)));
         Wait(() => State(folder, role)?.Serial == next, "fixture received " + action);
     }
+    private static bool IsNativeDialog()
+    {
+        var kind = new StringBuilder(100);
+        Native.GetClassName(Native.GetForegroundWindow(), kind, kind.Capacity);
+        return kind.ToString() == "#32770";
+    }
     private static void Capture(Form form, string path)
     {
         form.Show(); Application.DoEvents();
@@ -109,7 +115,7 @@ public static class Tests
             foreach (var kind in new[] { "open", "save" })
             {
                 Command(folder, "a", kind);
-                Wait(() => State(folder, "a")?.PanelOpen == true && ApplicationPolicy.Allows([bookmark], DesktopService.Identify(Native.GetForegroundWindow())), "native " + kind + " dialog is frontmost");
+                Wait(() => State(folder, "a")?.PanelOpen == true && IsNativeDialog() && ApplicationPolicy.Allows([bookmark], DesktopService.Identify(Native.GetForegroundWindow())), "native " + kind + " dialog is frontmost");
                 enforcer.Check(); Check(!enforcer.IsCovered, "native " + kind + " dialog allowed"); Command(folder, "a", "dismiss");
                 Wait(() => State(folder, "a")?.PanelOpen == false, "native dialog dismissed");
             }
