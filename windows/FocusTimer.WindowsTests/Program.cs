@@ -25,7 +25,11 @@ public static class Tests
             var config = JsonSerializer.Deserialize<FixtureConfig>(File.ReadAllText(configPath))!;
             Application.Run(new FixtureForm(config)); return 0;
         }
-        try { Run(args.Length > 0 ? Path.GetFullPath(args[0]) : Path.GetFullPath("artifacts/windows-tests")); return 0; }
+        try {
+            if (args is ["--package-test", var distribution, var evidence]) PackageTests.Run(Path.GetFullPath(distribution), Path.GetFullPath(evidence));
+            else Run(args.Length > 0 ? Path.GetFullPath(args[0]) : Path.GetFullPath("artifacts/windows-tests"));
+            return 0;
+        }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
     }
     private static void Check(bool condition, string reason)

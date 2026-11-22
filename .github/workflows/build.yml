@@ -31,11 +31,11 @@ jobs:
         run: ./scripts/Publish-Windows.ps1 -Runtime win-x64
       - name: Package Windows ARM64
         run: ./scripts/Publish-Windows.ps1 -Runtime win-arm64
-      - name: Check packaged application preflight
+      - name: Verify actual Windows installation and safe update
         shell: pwsh
         run: |
-          $app = Start-Process artifacts/publish-win-x64/FocusTimer.exe -ArgumentList '--check-install' -Wait -PassThru
-          if ($app.ExitCode -ne 0) { throw "Package preflight failed: $($app.ExitCode)" }
+          dotnet run --no-build --project windows/FocusTimer.WindowsTests -c Release -- --package-test artifacts/publish-win-x64 artifacts/windows-tests 2>&1 | Tee-Object artifacts/package-tests.log
+          if ($LASTEXITCODE -ne 0) { throw 'Real installer checks failed' }
       - name: Upload Windows packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -51,8 +51,9 @@ jobs:
           name: windows-test-evidence
           path: |
             artifacts/windows-tests/*.png
-            artifacts/windows-tests/result.txt
+            artifacts/windows-tests/*result.txt
             artifacts/windows-tests.log
+            artifacts/package-tests.log
   macos:
     runs-on: macos-15
     timeout-minutes: 15
