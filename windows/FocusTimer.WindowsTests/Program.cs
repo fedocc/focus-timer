@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using FocusTimer.Core;
 using FocusTimer.Windows;
 
@@ -48,11 +49,24 @@ public static class Tests
         File.WriteAllText(Path.Combine(folder, role + "-command.json"), JsonSerializer.Serialize(new FixtureCommand(next, action, path)));
         Wait(() => State(folder, role)?.Serial == next, "fixture received " + action);
     }
+    [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll", EntryPoint = "mouse_event")] private static extern void MouseEvent(uint flags, uint x, uint y, uint data, nuint extra);
+    private static IEnumerable<Control> Descendants(Control control) => control.Controls.Cast<Control>().SelectMany(child => new[] { child }.Concat(Descendants(child)));
     private static bool IsNativeDialog()
     {
         var kind = new StringBuilder(100);
         Native.GetClassName(Native.GetForegroundWindow(), kind, kind.Capacity);
         return kind.ToString() == "#32770";
+    }
+    private static void CheckFullyVisible(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (!child.Visible) continue;
+            Check(child.Right <= parent.ClientSize.Width && child.Bottom <= parent.ClientSize.Height,
+                "control fits native container: " + child.GetType().Name);
+            CheckFullyVisible(child);
+        }
     }
     private static void Capture(Form form, string path)
     {
@@ -74,6 +88,7 @@ public static class Tests
         {
             menu.ShowNearTray(); Application.DoEvents();
             Check(menu.ClientSize.Width >= 350 && menu.ClientSize.Height >= 490, "menu dimensions fit native controls");
+            CheckFullyVisible(menu);
             var selected = controller.Selection;
             menu.SetSearchForTest("selected"); Check(menu.VisibleAppCount == 1, "search finds saved closed app");
             menu.SetSearchForTest("missing-application"); Check(menu.VisibleAppCount == 0 && controller.Selection.SequenceEqual(selected), "search preserves hidden selections");
@@ -94,6 +109,16 @@ public static class Tests
         store.Save(new FocusSettings { Selection = [a], Session = shortSession });
         var shortController = new FocusController(store);
         Thread.Sleep(150); Check(shortController.Tick() && shortController.CanQuit && store.Load().Session is null, "elapsed test session finishes durably without cancellation");
+        var ioSession = FocusSession.Start(1, [a], WindowsClock.Read()) with {
+            DurationMs = 500, UptimeDeadlineMs = WindowsClock.Read().UptimeMs + 500,
+            WallDeadline = DateTimeOffset.UtcNow.AddMilliseconds(500) };
+        store.Save(new FocusSettings { Selection = [a], Session = ioSession });
+        var ioController = new FocusController(store);
+        File.Delete(store.Path); Directory.CreateDirectory(store.Path); // deterministic failure, test path only
+        Thread.Sleep(600);
+        Check(ioController.Tick() && ioController.CanQuit && ioController.PersistenceWarning is not null,
+            "save failure cannot prolong an expired block");
+        Directory.Delete(store.Path); store.Save(new FocusSettings());
         Native.AllowSetForegroundWindow(uint.MaxValue);
         var aPath = MakeFixture(folder, "a"); var bPath = MakeFixture(folder, "b");
         Process? allowedProcess = null; Process? deniedProcess = null;
@@ -103,8 +128,8 @@ public static class Tests
             allowedProcess = Process.Start(new ProcessStartInfo(aPath) { UseShellExecute = true })!;
             Wait(() => State(folder, "a") is not null, "allowed fixture launched");
             var bookmark = new AppBookmark(aPath, "Allowed fixture");
-            var baseline = DesktopService.Snapshot().Select(x => x.Bookmark).Where(x => !x.Matches(new(bPath, "Denied")));
-            enforcer.Start(baseline.Append(bookmark));
+            enforcer.OpenRequested += DesktopService.Open;
+            enforcer.Start([bookmark]);
             Command(folder, "a", "activate");
             Wait(() => ApplicationPolicy.Allows([bookmark], DesktopService.Identify(Native.GetForegroundWindow())), "permitted fixture is real foreground app");
             enforcer.Check(); Check(!enforcer.IsCovered, "permitted app has no shield");
@@ -126,7 +151,19 @@ public static class Tests
             var denied = new AppBookmark(bPath, "Denied fixture");
             Wait(() => ApplicationPolicy.Allows([denied], DesktopService.Identify(Native.GetForegroundWindow())), "unselected app foreground detected");
             enforcer.Check(); Check(enforcer.IsCovered, "unselected app covered immediately");
-            Wait(() => ApplicationPolicy.Allows([bookmark], DesktopService.Identify(Native.GetForegroundWindow())), "blocked app redirects to allowed program");
+            var activationDeadline = Environment.TickCount64 + 1500;
+            while (!ApplicationPolicy.Allows([bookmark], DesktopService.Identify(Native.GetForegroundWindow())) && Environment.TickCount64 < activationDeadline)
+            { Application.DoEvents(); enforcer.Check(); Thread.Sleep(20); }
+            if (!ApplicationPolicy.Allows([bookmark], DesktopService.Identify(Native.GetForegroundWindow())))
+            {
+                Check(enforcer.IsCovered, "Windows-denied activation retains the shield");
+                Console.WriteLine("Windows refused automatic activation; testing a real click on the shield button");
+                var shield = Application.OpenForms.OfType<ShieldForm>().First();
+                var button = Descendants(shield).OfType<Button>().First();
+                var point = button.PointToScreen(new Point(button.Width / 2, button.Height / 2));
+                SetCursorPos(point.X, point.Y); MouseEvent(2, 0, 0, 0, 0); MouseEvent(4, 0, 0, 0, 0);
+            }
+            Wait(() => ApplicationPolicy.Allows([bookmark], DesktopService.Identify(Native.GetForegroundWindow())), "permitted app reachable after blocking, with native click recovery if needed");
             enforcer.Check(); Check(!enforcer.IsCovered, "shield removed after verified allowed foreground");
             var oldPid = allowedProcess.Id;
             Command(folder, "a", "quit"); Wait(() => allowedProcess.HasExited, "allowed app closed normally");

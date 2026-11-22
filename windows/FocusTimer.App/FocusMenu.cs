@@ -14,7 +14,7 @@ public sealed class FocusMenu : Form
     private readonly Label countdown = new() { Dock = DockStyle.Top, Height = 75, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 34) };
     private readonly Button start = new() { Text = "Начать", Dock = DockStyle.Fill, Height = 38 };
     private readonly Button refresh = new() { Text = "Обновить", AutoSize = true };
-    private readonly FlowLayoutPanel duration = new() { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
+    private readonly FlowLayoutPanel duration = new() { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = Padding.Empty };
     private readonly Button quit = new() { Text = "Выйти", AutoSize = true };
     private LiveApp[] allApps = [];
     private LiveApp[] visibleApps = [];
@@ -26,14 +26,14 @@ public sealed class FocusMenu : Form
     public FocusMenu(FocusController controller)
     {
         this.controller = controller;
-        Text = "Фокус Таймер"; Font = new Font("Segoe UI", 10); ClientSize = new Size(380, 510);
+        Text = "Фокус Таймер"; Font = new Font("Segoe UI", 10); ClientSize = new Size(380, 520);
         FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false;
         ShowInTaskbar = false; TopMost = true; AutoScaleMode = AutoScaleMode.Dpi; AutoScaleDimensions = new SizeF(96, 96);
         BackColor = SystemColors.Window; ForeColor = SystemColors.WindowText;
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 9, Padding = new Padding(16) };
-        foreach (var height in new[] { 38, 30, 32, 250, 38, 42, 28, 0, 0 }) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+        foreach (var height in new[] { 38, 30, 40, 250, 38, 42, 36, 0, 0 }) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         layout.Controls.Add(heading, 0, 0); layout.Controls.Add(description, 0, 1);
-        var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+        var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Margin = Padding.Empty };
         searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         searchRow.Controls.Add(search, 0, 0); searchRow.Controls.Add(refresh, 1, 0); layout.Controls.Add(searchRow, 0, 2);
         var list = new Panel { Dock = DockStyle.Fill }; list.Controls.Add(apps); list.Controls.Add(activeApps); list.Controls.Add(countdown);
@@ -41,7 +41,7 @@ public sealed class FocusMenu : Form
         duration.Controls.Add(new Label { Text = "Время", AutoSize = true, Padding = new Padding(0, 5, 12, 0) });
         duration.Controls.Add(minutes); duration.Controls.Add(new Label { Text = "мин", AutoSize = true, Padding = new Padding(4, 5, 0, 0) });
         layout.Controls.Add(duration, 0, 4); layout.Controls.Add(start, 0, 5);
-        var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
+        var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Margin = Padding.Empty };
         footer.Controls.Add(new Label { Text = "До конца таймера без отмены", AutoSize = true, Padding = new Padding(0, 5, 6, 0), Font = new Font("Segoe UI", 8) });
         footer.Controls.Add(quit); layout.Controls.Add(footer, 0, 6); Controls.Add(layout);
         search.TextChanged += (_, _) => RenderList(); refresh.Click += (_, _) => RefreshApps();
