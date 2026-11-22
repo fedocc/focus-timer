@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.Json;
-using System.Runtime.InteropServices;
 using FocusTimer.Core;
 
 namespace FocusTimer.Windows;
@@ -52,7 +51,7 @@ public static class WindowsInstaller
             finally { if (Directory.Exists(staging)) Directory.Delete(staging, true); }
         }
         var executable = Path.Combine(target, "FocusTimer.exe");
-        CreateShortcut(executable);
+        ShellShortcut.Create(executable);
         return executable;
     }
     private static void CopyDistribution(string source, string destination)
@@ -70,27 +69,6 @@ public static class WindowsInstaller
                 throw new InvalidDataException("Некорректный путь в списке файлов выпуска.");
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
             File.Copy(input, output, true);
-        }
-    }
-    private static void CreateShortcut(string executable)
-    {
-        object? shell = null, shortcut = null;
-        try
-        {
-            var type = Type.GetTypeFromProgID("WScript.Shell") ?? throw new InvalidOperationException("Не удалось создать ярлык.");
-            shell = Activator.CreateInstance(type)!;
-            var folder = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
-            shortcut = type.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell,
-                [Path.Combine(folder, "Фокус Таймер.lnk")])!;
-            var shortcutType = shortcut.GetType();
-            shortcutType.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, shortcut, [executable]);
-            shortcutType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, shortcut, [Path.GetDirectoryName(executable)!]);
-            shortcutType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, []);
-        }
-        finally
-        {
-            if (shortcut is not null && Marshal.IsComObject(shortcut)) Marshal.FinalReleaseComObject(shortcut);
-            if (shell is not null && Marshal.IsComObject(shell)) Marshal.FinalReleaseComObject(shell);
         }
     }
 }

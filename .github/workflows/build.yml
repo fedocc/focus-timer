@@ -29,13 +29,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows integration checks failed' }
       - name: Package Windows x64
         run: ./scripts/Publish-Windows.ps1 -Runtime win-x64
-      - name: Package Windows ARM64
-        run: ./scripts/Publish-Windows.ps1 -Runtime win-arm64
       - name: Verify actual Windows installation and safe update
         shell: pwsh
         run: |
           dotnet run --no-build --project windows/FocusTimer.WindowsTests -c Release -- --package-test artifacts/publish-win-x64 artifacts/windows-tests 2>&1 | Tee-Object artifacts/package-tests.log
           if ($LASTEXITCODE -ne 0) { throw 'Real installer checks failed' }
+      - name: Package Windows ARM64
+        run: ./scripts/Publish-Windows.ps1 -Runtime win-arm64
       - name: Upload Windows packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

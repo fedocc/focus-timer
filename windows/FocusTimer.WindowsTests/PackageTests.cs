@@ -61,6 +61,7 @@ public static class PackageTests
         Check(preflight.ExitCode == 0, "published self-contained application starts and passes preflight");
         using var first = Install(Path.Combine(distribution, "InstallFocus.exe"), target);
         Check(original.SequenceEqual(File.ReadAllBytes(store.Path)), "installation preserves minutes and selection byte for byte");
+        Check(File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Фокус Таймер.lnk")), "native Unicode Start Menu shortcut created");
         using var second = Process.Start(new ProcessStartInfo(Path.Combine(distribution, "InstallFocus.exe")) { UseShellExecute = true })!;
         Wait(() => first.HasExited, "updater requests ordinary exit from idle installed app");
         Wait(() => { var current = Installed(target); return current is not null && current.Id != first.Id; }, "updater starts new installed process");
