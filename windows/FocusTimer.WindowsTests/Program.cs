@@ -133,10 +133,13 @@ public static class Tests
             Wait(() => State(folder, "a") is not null, "allowed fixture launched");
             var bookmark = new AppBookmark(aPath, "Allowed fixture");
             enforcer.OpenRequested += DesktopService.Open;
+            var shell = new List<nint>();
+            Native.EnumWindows((window, _) => { if (DesktopService.IsShellSurface(window) && Native.IsWindowVisible(window)) shell.Add(window); return true; }, 0);
             enforcer.Start([bookmark]);
             Command(folder, "a", "activate");
             Wait(() => ApplicationPolicy.Allows([bookmark], DesktopService.Identify(Native.GetForegroundWindow())), "permitted fixture is real foreground app");
             enforcer.Check(); Check(!enforcer.IsCovered, "permitted app has no shield");
+            Check(shell.All(Native.IsWindowVisible), "taskbar and desktop surfaces remain visible");
             Command(folder, "a", "window");
             Wait(() => State(folder, "a")?.Windows == 2, "new window created in permitted process");
             enforcer.Check(); Check(!enforcer.IsCovered, "new window automatically allowed");

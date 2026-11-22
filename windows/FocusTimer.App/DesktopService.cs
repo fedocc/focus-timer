@@ -55,11 +55,16 @@ public static class DesktopService
         Native.GetWindowThreadProcessId(window, out var pid);
         return pid == Environment.ProcessId;
     }
+    public static bool IsShellSurface(nint window)
+    {
+        var name = new StringBuilder(100); Native.GetClassName(window, name, name.Capacity);
+        return name.ToString() is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "Progman" or "WorkerW";
+    }
     public static LiveApp[] Snapshot(IEnumerable<AppBookmark>? saved = null)
     {
         var groups = new Dictionary<string, (AppBookmark App, List<nint> Windows)>(StringComparer.OrdinalIgnoreCase);
         Native.EnumWindows((window, _) => {
-            if (!Native.IsWindowVisible(window) || IsOwnWindow(window)) return true;
+            if (!Native.IsWindowVisible(window) || IsOwnWindow(window) || IsShellSurface(window)) return true;
             var title = new StringBuilder(512); Native.GetWindowText(window, title, title.Capacity);
             if (title.Length == 0) return true;
             var app = Identify(window);

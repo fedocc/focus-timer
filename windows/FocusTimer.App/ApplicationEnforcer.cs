@@ -75,7 +75,7 @@ public sealed class ApplicationEnforcer : IDisposable
             var now = (long)Native.GetTickCount64();
             if (now - lastRedirect < 350) return;
             lastRedirect = now;
-            if (foreground != 0 && !DesktopService.IsOwnWindow(foreground)) Native.ShowWindowAsync(foreground, 6);
+            if (foreground != 0 && !DesktopService.IsOwnWindow(foreground) && !DesktopService.IsShellSurface(foreground)) Native.ShowWindowAsync(foreground, 6);
             if (lastAllowed != 0 && ApplicationPolicy.Allows(allowed, DesktopService.Identify(lastAllowed))) DesktopService.Raise(lastAllowed);
             else
             {
