@@ -18,10 +18,14 @@ public static class WindowsInstaller
         var old = Process.GetProcessesByName("FocusTimer").Where(p => p.Id != Environment.ProcessId).ToArray();
         try
         {
-            if (EventWaitHandle.TryOpenExisting(Program.ExitEventName, out var request)) { using (request) request.Set(); }
             var deadline = Environment.TickCount64 + 10_000;
             while (old.Any(p => !p.HasExited) && Environment.TickCount64 < deadline)
-            { InstallerPolicy.Check(store.Load()); Thread.Sleep(100); }
+            {
+                InstallerPolicy.Check(store.Load());
+                // A just-started instance may hold the file lock before its message loop/event exists.
+                if (EventWaitHandle.TryOpenExisting(Program.ExitEventName, out var request)) { using (request) request.Set(); }
+                Thread.Sleep(100);
+            }
             InstallerPolicy.Check(store.Load());
             if (old.Any(p => !p.HasExited)) throw new IOException("Старая копия не подтвердила обычный выход. Закройте ее через меню после окончания блока.");
         }

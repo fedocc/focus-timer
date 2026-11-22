@@ -43,7 +43,19 @@ public static class PackageTests
             return found || process.HasExited;
         }, "installer success dialog acknowledged");
         Wait(() => process.HasExited, "installer exited normally"); Check(process.ExitCode == 0, "installer reported success");
-        return Installed(target) ?? throw new Exception("Installed app is missing");
+        var installed = Installed(target) ?? throw new Exception("Installed app is missing");
+        Wait(() => {
+            var ready = false;
+            Native.EnumWindows((window, _) => {
+                Native.GetWindowThreadProcessId(window, out var pid);
+                if (pid != installed.Id || !Native.IsWindowVisible(window)) return true;
+                var title = new StringBuilder(512); Native.GetWindowText(window, title, title.Capacity);
+                if (title.ToString() == "Фокус Таймер") ready = true;
+                return true;
+            }, 0);
+            return ready;
+        }, "installed app displayed its native menu");
+        return installed;
     }
     public static void Run(string distribution, string evidence)
     {
@@ -62,8 +74,10 @@ public static class PackageTests
         using var first = Install(Path.Combine(distribution, "InstallFocus.exe"), target);
         Check(original.SequenceEqual(File.ReadAllBytes(store.Path)), "installation preserves minutes and selection byte for byte");
         Check(File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Фокус Таймер.lnk")), "native Unicode Start Menu shortcut created");
-        using var second = Process.Start(new ProcessStartInfo(Path.Combine(distribution, "InstallFocus.exe")) { UseShellExecute = true })!;
-        Wait(() => first.HasExited, "updater requests ordinary exit from idle installed app");
+        using var second = Process.Start(new ProcessStartInfo(Path.Combine(distribution, "InstallFocus.exe"), "--install") { UseShellExecute = false, RedirectStandardError = true })!;
+        Wait(() => first.HasExited || second.HasExited, "updater requested exit or reported an error");
+        if (second.HasExited && second.ExitCode != 0) throw new Exception("Idle updater error: " + second.StandardError.ReadToEnd());
+        Check(first.HasExited, "updater requests ordinary exit from idle installed app");
         Wait(() => { var current = Installed(target); return current is not null && current.Id != first.Id; }, "updater starts new installed process");
         Wait(() => {
             Native.EnumWindows((window, _) => {
